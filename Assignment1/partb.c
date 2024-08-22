@@ -93,11 +93,19 @@ static int remove_set(uint32_t pid) {
     return -1;
 }
 
+//Function to insert an element in a set
+static int insert_element(Set *set, int element) {
+    if (set->size == set->capacity) {
+        return -1;
+    }
+    set->data[set->size] = element;
+    set->size++;
+    return 0;
+}
+
 static int partB_open(struct inode *inode, struct file *file) {
     //Getting pid to be used to find the set
     unsigned int set_id = current->pid;
-
-    pr_info("OPEN: Set with pid %u opened\n", set_id);
 
     Set *cur_set;
     cur_set = find_set(set_id);
@@ -105,12 +113,9 @@ static int partB_open(struct inode *inode, struct file *file) {
         pr_info("OPEN: Set with pid %u not found, inserting new set\n", set_id);
         insert_set(set_id);
         cur_set = find_set(set_id);
-    } else { //If set is found, reset the set
-        pr_info("OPEN: Set with pid %u found, resetting the set\n", set_id);
-        kfree(cur_set->data);
-        cur_set->data = NULL;
-        cur_set->capacity = 0;
-        cur_set->size = 0;
+    } else { //If set is found, return error
+        pr_info("OPEN: Set with pid %u found\n", set_id);
+        return -EBUSY;
     }
 
     file->private_data = cur_set;
@@ -131,9 +136,96 @@ static int partB_release(struct inode *inode, struct file *file) {
     return 0;
 }
 
+static ssize_t partB_read(struct file *file, char __user *buffer, size_t count, loff_t *pos) {
+    Set *cur_set = file->private_data;
+    if (!cur_set) {
+        return -EINVAL;
+    }
+
+    //Checking if the provided buffer is large enough
+    if (count < 4 * cur_set->size) {
+        pr_info("READ: Buffer too small\n");
+        return -EACCES;
+    }
+
+    //Returning all the elements in the set
+    size_t bytes_read = 0;
+    int i;
+    for (i = 0; i < cur_set->size; i++) {
+        if (copy_to_user(buffer, &cur_set->data[i], 4)) {
+            return -EFAULT;
+        }
+
+        buffer += 4;
+        bytes_read += 4;
+        count -= 4;
+    }
+
+    pr_info("READ: Set with pid %u read\n", cur_set->pid);
+    return bytes_read;
+}
+
+static ssize_t partB_write(struct file *file, const char __user *buffer, size_t count, loff_t *pos) {
+    Set *cur_set = file->private_data;
+    size_t bytes_written = 0;
+    if (!cur_set) {
+        return -EINVAL;
+    }
+
+    if (cur_set->capacity == 0) {    //Set is uninitialized
+        //First byte from user space is the capacity of the set
+        if (count < 1) {
+            return -EINVAL;
+        }
+        
+        //Getting the capacity of the set
+        char capacity;
+        if (copy_from_user(&capacity, buffer, 1)) {
+            return -EFAULT;
+        }
+
+        //Checking if capacity is valid
+        if (capacity < 1 || capacity > MAX_CAPACITY) {
+            return -EINVAL;
+        }
+
+        //Allocating memory for the set
+        cur_set->data = kmalloc(sizeof(int) * capacity, GFP_KERNEL);
+        if (!cur_set->data) {
+            return -ENOMEM;
+        }
+
+        cur_set->capacity = capacity;
+        cur_set->size = 0;
+        pr_info("WRITE: Set with pid %u initialized with capacity %d\n", cur_set->pid, cur_set->capacity);
+
+        bytes_written += 1;
+    } else {    //Set is initialized, read one integer from user space and add it to set
+        if (count < 4) {
+            return -EINVAL;
+        }
+
+        int element;
+        if (copy_from_user(&element, buffer, 4)) {
+            return -EFAULT;
+        }
+
+        int insert_status = insert_element(cur_set, element);
+        if (insert_status == 0) {
+            pr_info("WRITE: Element %d inserted in set with pid %u\n", element, cur_set->pid);
+            bytes_written += 4;
+        } else {
+            pr_info("WRITE: Element %d not inserted in set with pid %u\n", element, cur_set->pid);
+            return -EACCES;
+        }
+    }
+
+    return bytes_written;
+}    
+
 static struct proc_ops partb_fops = {
-    .proc_read = NULL,
-    .proc_write = NULL,
+    .proc_read = partB_read,
+    .proc_write = partB_write,
     .proc_open = partB_open,
     .proc_release = partB_release
 };

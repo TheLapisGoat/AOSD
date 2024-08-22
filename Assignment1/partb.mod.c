@@ -30,11 +30,15 @@ __used __section("__versions") = {
 	{ 0x84fb74e5, "proc_create" },
 	{ 0xee32495a, "kmem_cache_alloc_trace" },
 	{ 0x9517dac4, "kmalloc_caches" },
+	{ 0x6b10bee1, "_copy_to_user" },
+	{ 0xc959d152, "__stack_chk_fail" },
+	{ 0xeb233a45, "__kmalloc" },
+	{ 0x13c49cc2, "_copy_from_user" },
 	{ 0x5b8239ca, "__x86_return_thunk" },
+	{ 0xc5850110, "printk" },
 	{ 0x409bcb62, "mutex_unlock" },
 	{ 0x37a0cba, "kfree" },
 	{ 0x2ab7989d, "mutex_lock" },
-	{ 0xc5850110, "printk" },
 	{ 0xb9115392, "current_task" },
 	{ 0xbdfb6dbb, "__fentry__" },
 };
@@ -42,4 +46,4 @@ __used __section("__versions") = {
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "D13460F22B11084DDD60F8E");
+MODULE_INFO(srcversion, "4AC8CB8F54056C823119675");
