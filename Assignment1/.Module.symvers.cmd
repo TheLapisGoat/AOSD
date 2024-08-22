@@ -1,1 +1,0 @@
-cmd_/home/thelapisgoat/Desktop/LKM/Assignment1/Module.symvers := sed 's/ko$$/o/' /home/thelapisgoat/Desktop/LKM/Assignment1/modules.order | scripts/mod/modpost -m -a   -o /home/thelapisgoat/Desktop/LKM/Assignment1/Module.symvers -e -i Module.symvers   -T -
