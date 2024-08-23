@@ -1,47 +1,90 @@
-//C program to open the file '/proc/partb_21CS10064'
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <pthread.h>
+#include <stdlib.h>
+#include <time.h>
+#include <wait.h>
 
-int main() {
-    FILE *file = fopen("/proc/partb_21CS10064", "w+");
-    if (file == NULL) {
-        printf("Error opening file\n");
-        return 1;
+#define N_FORKS 100
+
+// POSIX mutex
+pthread_mutex_t output_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void child_process(int child_id) {
+    // Open the file
+    int fd = open("/proc/partb_21CS10064", O_RDWR);
+    if (fd == -1) {
+        perror("open");
+        exit(1);
     }
-    printf("File opened successfully\n");
+
+    // Pick a random number between 1 and 100
+    srand(time(0) + child_id);  // Seed the random number generator differently for each child
+    int capacity = rand() % 100 + 1;
 
     // First byte written will be the capacity of the set
-    char capacity = 5;
-    // size_t bytes_w = fwrite(&capacity, sizeof(char), 1, file);
-    size_t bytes_w = write(fileno(file), &capacity, sizeof(char));
-    printf("Bytes written: %ld\n", bytes_w);
-
-    //Next insert 4 integers into the set
-    int elements[] = {1, 2, 3, 4, 5};
-    for (int i = 0; i < 5; i++) {
-        // bytes_w = fwrite(&elements[i], sizeof(int), 1, file);
-        bytes_w = write(fileno(file), &elements[i], sizeof(int));
-        printf("Bytes written: %ld\n", bytes_w);
+    char capacity_byte = capacity;
+    ssize_t bytes_w = write(fd, &capacity_byte, sizeof(char));
+    if (bytes_w == -1) {
+        perror("write");
+        close(fd);
+        exit(1);
     }
 
-    //Try to write more than the capacity of the set
-    int element = 6;
-    bytes_w = write(fileno(file), &element, sizeof(int));
-    // bytes_w = fwrite(&element, sizeof(int), 1, file);
-    printf("Bytes written: %ld\n", bytes_w);
-    printf("Error code: %d\n", errno);
-
-    // Read the contents of the file
-    char buffer[100];
-    ssize_t bytes_r = read(fileno(file), buffer, 100);
-    printf("Bytes read: %ld\n", bytes_r);
-
-    //Print the contents of the file (they are integers)
-    for (int i = 0; i < bytes_r / sizeof(int); i++) {
-        printf("%d ", *((int *) (buffer + i * sizeof(int))));
+    // Next insert capacity integers into the set
+    int elements[capacity];
+    for (int i = 0; i < capacity; i++) {
+        elements[i] = rand() % 1000;
+        bytes_w = write(fd, &elements[i], sizeof(int));
+        if (bytes_w == -1) {
+            perror("write");
+            close(fd);
+            exit(1);
+        }
     }
-    
-    fclose(file);
+
+    // Read the contents of the file, with buffer being enough to hold all the integers
+    char buffer[capacity * sizeof(int)];
+    ssize_t bytes_r = read(fd, buffer, capacity * sizeof(int));
+    if (bytes_r == -1) {
+        perror("read");
+        close(fd);
+        exit(1);
+    }
+
+    //Print the child id and capacity
+    pthread_mutex_lock(&output_mutex);
+    printf("Child ID: %d\t Elements: %d\n", child_id, capacity);
+    pthread_mutex_unlock(&output_mutex);
+
+    // Close the file
+    close(fd);
+}
+
+int main() {
+    // Create N_FORKS detached child processes
+    for (int i = 0; i < N_FORKS; i++) {
+        pid_t pid = fork();
+        if (pid == 0) {
+            child_process(i);
+            exit(0);
+        } else if (pid == -1) {
+            perror("fork");
+            exit(1);
+        }
+    }
+
+    // Wait for all child processes to finish
+    for (int i = 0; i < N_FORKS; i++) {
+        wait(NULL);
+    }
+
+    // Destroy the mutex after all processes are done
+    pthread_mutex_destroy(&output_mutex);
+
     return 0;
 }
