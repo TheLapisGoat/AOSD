@@ -7,7 +7,7 @@
 #include <linux/mutex.h>
 
 #define MAX_CAPACITY 100
-#define PROCFS_NAME "partb_21CS10064"
+#define PROCFS_NAME "partb_21CS10064_21CS10037"
 
 struct Set_TYPE {
     int *data;

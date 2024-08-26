@@ -11,12 +11,11 @@
 
 #define N_FORKS 100
 
-// POSIX mutex
 pthread_mutex_t output_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void child_process(int child_id) {
     // Open the file
-    int fd = open("/proc/partb_21CS10064", O_RDWR);
+    int fd = open("/proc/partb_21CS10064_21CS10037", O_RDWR);
     if (fd == -1) {
         perror("open");
         exit(1);
@@ -38,7 +37,7 @@ void child_process(int child_id) {
     // Next insert capacity integers into the set
     int elements[capacity];
     for (int i = 0; i < capacity; i++) {
-        elements[i] = rand() % 1000;
+        elements[i] = rand() % __INT_MAX__;
         bytes_w = write(fd, &elements[i], sizeof(int));
         if (bytes_w == -1) {
             perror("write");
@@ -54,6 +53,16 @@ void child_process(int child_id) {
         perror("read");
         close(fd);
         exit(1);
+    }
+
+    // Check if the read contents are the same as the written contents
+    int *read_elements = (int *) buffer;
+    for (int i = 0; i < capacity; i++) {
+        if (read_elements[i] != elements[i]) {
+            pthread_mutex_lock(&output_mutex);
+            printf("Child ID: %d\t Mismatch at index %d\n", child_id, i);
+            pthread_mutex_unlock(&output_mutex);
+        }
     }
 
     //Print the child id and capacity
